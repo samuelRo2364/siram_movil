@@ -55,10 +55,13 @@ class SiramGraphqlService {
     return Incidente.fromJson(body['data']['reportarIncidente']);
   }
 
-  Future<List<Incidente>> obtenerIncidentes({TipoIncidente? filtroTipo}) async {
+  Future<List<Incidente>> obtenerIncidentes({
+    TipoIncidente? filtroTipo,
+    String? filtroFecha,
+  }) async {
     const String query = '''
-      query ListarIncidentes(\$tipo: TipoIncidente) {
-        incidentes(tipo: \$tipo) {
+      query ListarIncidentes(\$tipo: TipoIncidente, \$fecha: String) {
+        incidentes(tipo: \$tipo, fecha: \$fecha) {
           id
           tipo
           ubicacion {
@@ -77,6 +80,7 @@ class SiramGraphqlService {
         'query': query,
         'variables': {
           'tipo': filtroTipo?.name,
+          'fecha': filtroFecha,
         },
       }),
     );

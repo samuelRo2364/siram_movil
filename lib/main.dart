@@ -29,7 +29,7 @@ class SiramApp extends StatelessWidget {
 }
 
 // ============================================================================
-// GUARDIÁN DE PERMISOS DE UBICACIÓN (BLOQUEA LA APP SI SE RECHAZA EL PERMISO)
+// GUARDIÁN DE PERMISOS DE UBICACIÓN
 // ============================================================================
 class PermisoUbicacionGate extends StatefulWidget {
   const PermisoUbicacionGate({super.key});
@@ -332,7 +332,7 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 // ============================================================================
-// PESTAÑA 1: REPORTAR EMERGENCIA
+// PESTAÑA 1: REPORTAR EMERGENCIA (CON CONFIRMACIÓN PREVIA)
 // ============================================================================
 class ReportarEmergenciaTab extends StatefulWidget {
   const ReportarEmergenciaTab({super.key});
@@ -398,7 +398,8 @@ class _ReportarEmergenciaTabState extends State<ReportarEmergenciaTab> {
     }
   }
 
-  Future<void> _enviarAlerta() async {
+  /// Muestra la ventana de confirmación antes de ejecutar el envío real
+  Future<void> _solicitarConfirmacion() async {
     if (_latitud == null || _longitud == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -409,6 +410,68 @@ class _ReportarEmergenciaTabState extends State<ReportarEmergenciaTab> {
       return;
     }
 
+    final bool? confirmado = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          icon: Icon(
+            _tipoSeleccionado.icon,
+            color: _tipoSeleccionado.color,
+            size: 44,
+          ),
+          title: const Text(
+            'Confirma tu reporte',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '¿Estás seguro de enviar una alerta de ${_tipoSeleccionado.label} a ${_tipoSeleccionado.entidadAsignada}?',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  'Ubicación GPS:\n${_latitud!.toStringAsFixed(5)}, ${_longitud!.toStringAsFixed(5)}',
+                  style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ],
+          ),
+          actionsAlignment: MainAxisAlignment.spaceEvenly,
+          actions: [
+            OutlinedButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Volver'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFDC2626),
+              ),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Confirmar y enviar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmado == true) {
+      await _enviarAlerta();
+    }
+  }
+
+  Future<void> _enviarAlerta() async {
     setState(() => _enviandoReporte = true);
 
     try {
@@ -419,7 +482,7 @@ class _ReportarEmergenciaTabState extends State<ReportarEmergenciaTab> {
       );
 
       if (!mounted) return;
-      _mostrarDialogoConfirmacion(incidenteCreado);
+      _mostrarDialogoExito(incidenteCreado);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -433,7 +496,7 @@ class _ReportarEmergenciaTabState extends State<ReportarEmergenciaTab> {
     }
   }
 
-  void _mostrarDialogoConfirmacion(Incidente incidente) {
+  void _mostrarDialogoExito(Incidente incidente) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -494,7 +557,7 @@ class _ReportarEmergenciaTabState extends State<ReportarEmergenciaTab> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF0F172A).withOpacity(0.08),
+                      color: const Color(0xFF0F172A).withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(Icons.my_location_rounded, color: Color(0xFF0F172A)),
@@ -514,7 +577,11 @@ class _ReportarEmergenciaTabState extends State<ReportarEmergenciaTab> {
                         else if (_latitud != null && _longitud != null)
                           Text(
                             'Lat: ${_latitud!.toStringAsFixed(5)} | Lng: ${_longitud!.toStringAsFixed(5)}',
-                            style: TextStyle(fontSize: 13, color: Colors.green.shade700, fontWeight: FontWeight.w600),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.green.shade700,
+                              fontWeight: FontWeight.w600,
+                            ),
                           )
                         else
                           Text(
@@ -563,7 +630,7 @@ class _ReportarEmergenciaTabState extends State<ReportarEmergenciaTab> {
                   duration: const Duration(milliseconds: 200),
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: seleccionado ? tipo.color.withOpacity(0.12) : Colors.white,
+                    color: seleccionado ? tipo.color.withValues(alpha: 0.12) : Colors.white,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color: seleccionado ? tipo.color : Colors.grey.shade200,
@@ -597,7 +664,7 @@ class _ReportarEmergenciaTabState extends State<ReportarEmergenciaTab> {
           SizedBox(
             height: 58,
             child: FilledButton.icon(
-              onPressed: _enviandoReporte ? null : _enviarAlerta,
+              onPressed: _enviandoReporte ? null : _solicitarConfirmacion,
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFFDC2626),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -610,9 +677,7 @@ class _ReportarEmergenciaTabState extends State<ReportarEmergenciaTab> {
               )
                   : const Icon(Icons.send_rounded),
               label: Text(
-                _enviandoReporte
-                    ? 'ENVIANDO ALERTA...'
-                    : 'REPORTAR ${_tipoSeleccionado.label.toUpperCase()}',
+                _enviandoReporte ? 'ENVIANDO ALERTA...' : 'ENVIAR REPORTE',
                 style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 0.5),
               ),
             ),
@@ -624,7 +689,7 @@ class _ReportarEmergenciaTabState extends State<ReportarEmergenciaTab> {
 }
 
 // ============================================================================
-// PESTAÑA 2: HISTORIAL DE INCIDENTES
+// PESTAÑA 2: HISTORIAL DE INCIDENTES (FILTRO COMBINABLE TIPO + FECHA)
 // ============================================================================
 class HistorialIncidentesTab extends StatefulWidget {
   const HistorialIncidentesTab({super.key});
@@ -636,6 +701,7 @@ class HistorialIncidentesTab extends StatefulWidget {
 class _HistorialIncidentesTabState extends State<HistorialIncidentesTab> {
   final SiramGraphqlService _api = SiramGraphqlService();
   TipoIncidente? _filtroSeleccionado;
+  DateTime? _fechaSeleccionada;
   late Future<List<Incidente>> _futureIncidentes;
 
   @override
@@ -644,49 +710,122 @@ class _HistorialIncidentesTabState extends State<HistorialIncidentesTab> {
     _recargar();
   }
 
+  /// Formatea la fecha como YYYY-MM-DD para enviarla a GraphQL / REST
+  String? get _fechaFormateada {
+    if (_fechaSeleccionada == null) return null;
+    final y = _fechaSeleccionada!.year.toString().padLeft(4, '0');
+    final m = _fechaSeleccionada!.month.toString().padLeft(2, '0');
+    final d = _fechaSeleccionada!.day.toString().padLeft(2, '0');
+    return '$y-$m-$d';
+  }
+
   void _recargar() {
     setState(() {
-      _futureIncidentes = _api.obtenerIncidentes(filtroTipo: _filtroSeleccionado);
+      _futureIncidentes = _api.obtenerIncidentes(
+        filtroTipo: _filtroSeleccionado,
+        filtroFecha: _fechaFormateada,
+      );
     });
+  }
+
+  Future<void> _seleccionarFecha() async {
+    final DateTime hoy = DateTime.now();
+    final DateTime? elegida = await showDatePicker(
+      context: context,
+      initialDate: _fechaSeleccionada ?? hoy,
+      firstDate: DateTime(2024),
+      lastDate: hoy,
+      helpText: 'Filtrar incidentes por fecha',
+      cancelText: 'Cancelar',
+      confirmText: 'Filtrar',
+    );
+
+    if (elegida != null) {
+      _fechaSeleccionada = elegida;
+      _recargar();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // Barra horizontal de filtros por TipoIncidente
+        // Barra de filtros combinables (Fecha + TipoIncidente)
         Container(
           color: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                FilterChip(
-                  label: const Text('Todos'),
-                  selected: _filtroSeleccionado == null,
-                  onSelected: (_) {
-                    _filtroSeleccionado = null;
-                    _recargar();
-                  },
+          padding: const EdgeInsets.only(top: 10, bottom: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Selector de fecha
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    ActionChip(
+                      avatar: const Icon(Icons.calendar_today_rounded, size: 18),
+                      label: Text(
+                        _fechaFormateada != null
+                            ? 'Fecha: $_fechaFormateada'
+                            : 'Filtrar por fecha',
+                        style: TextStyle(
+                          fontWeight: _fechaFormateada != null
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                        ),
+                      ),
+                      backgroundColor: _fechaFormateada != null
+                          ? const Color(0xFFDC2626).withValues(alpha: 0.12)
+                          : null,
+                      onPressed: _seleccionarFecha,
+                    ),
+                    if (_fechaSeleccionada != null) ...[
+                      const SizedBox(width: 8),
+                      IconButton(
+                        tooltip: 'Quitar filtro de fecha',
+                        icon: const Icon(Icons.close_rounded, size: 20),
+                        onPressed: () {
+                          _fechaSeleccionada = null;
+                          _recargar();
+                        },
+                      ),
+                    ],
+                  ],
                 ),
-                const SizedBox(width: 8),
-                ...TipoIncidente.values.map((tipo) {
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: FilterChip(
-                      label: Text(tipo.label),
-                      selected: _filtroSeleccionado == tipo,
+              ),
+              const SizedBox(height: 8),
+              // Chips horizontales de TipoIncidente
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    FilterChip(
+                      label: const Text('Todos'),
+                      selected: _filtroSeleccionado == null,
                       onSelected: (_) {
-                        _filtroSeleccionado = tipo;
+                        _filtroSeleccionado = null;
                         _recargar();
                       },
                     ),
-                  );
-                }),
-              ],
-            ),
+                    const SizedBox(width: 8),
+                    ...TipoIncidente.values.map((tipo) {
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: FilterChip(
+                          label: Text(tipo.label),
+                          selected: _filtroSeleccionado == tipo,
+                          onSelected: (_) {
+                            _filtroSeleccionado = tipo;
+                            _recargar();
+                          },
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
 
@@ -731,7 +870,8 @@ class _HistorialIncidentesTabState extends State<HistorialIncidentesTab> {
                 if (incidentes.isEmpty) {
                   return const Center(
                     child: Text(
-                      'No hay incidentes registrados con este filtro.',
+                      'No hay incidentes registrados con los filtros seleccionados.',
+                      textAlign: TextAlign.center,
                       style: TextStyle(color: Colors.black54),
                     ),
                   );
@@ -753,7 +893,7 @@ class _HistorialIncidentesTabState extends State<HistorialIncidentesTab> {
                       child: ListTile(
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         leading: CircleAvatar(
-                          backgroundColor: item.tipo.color.withOpacity(0.15),
+                          backgroundColor: item.tipo.color.withValues(alpha: 0.15),
                           child: Icon(item.tipo.icon, color: item.tipo.color),
                         ),
                         title: Text(
